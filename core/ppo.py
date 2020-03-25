@@ -2,7 +2,7 @@ import torch
 
 
 def ppo_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_value_iternum, states, actions,
-             returns, advantages, repeats, fixed_log_probs, fixed_rpt_log_probs, clip_epsilon, l2_reg):
+             returns, advantages, stops, fixed_log_probs, fixed_lts_log_probs, clip_epsilon, l2_reg):
 
     """update critic"""
     for _ in range(optim_value_iternum):
@@ -16,10 +16,10 @@ def ppo_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_val
         optimizer_value.step()
 
     """update policy"""
-    action_log_probs, repeat_log_probs = policy_net.get_log_prob(states, actions, repeats)
+    action_log_probs, stop_log_probs = policy_net.get_log_prob(states, actions, stops)
     action_ratio = torch.exp(action_log_probs - fixed_log_probs)
-    repeat_ratio = torch.exp(repeat_log_probs - fixed_rpt_log_probs)
-    ratio = action_ratio + 1e-1*repeat_ratio
+    stop_ratio = torch.exp(stop_log_probs - fixed_lts_log_probs)
+    ratio = action_ratio + 1e-1*stop_ratio
     # ratio = action_ratio
     surr1 = ratio * advantages
     surr2 = torch.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * advantages

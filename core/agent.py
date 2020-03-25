@@ -4,10 +4,25 @@ from utils.torch import *
 import math
 import time
 from utils.args import *
+import numpy as np
+
 
 
 def collect_samples(pid, queue, env, policy, custom_reward,
                     mean_action, render, running_state, min_batch_size):
+    # def cat_s_a(s:torch.tensor, a:int):
+    #     batch_size = 1
+    #     label = torch.LongTensor([[a]])
+    #     a = torch.zeros(batch_size, env.action_space.n).scatter_(1, label, 1)
+    #     return torch.cat((s, a), 1)
+
+    def cat_s_a_np(s:np.array, a:int):
+        batch_size = 1
+        # label = np.array([[a]])
+        oh = np.zeros((batch_size, env.action_space.n))
+        oh[0,a] = 1
+        return np.append(s,oh)
+
     torch.randn(pid)
     log = dict()
     memory = Memory()
@@ -27,44 +42,51 @@ def collect_samples(pid, queue, env, policy, custom_reward,
         reward_episode = 0
 
         repeat = 0
-        repeat_len = 0
-        last_action = None
+        # repeat_len = 0
+        stop = True
+
+        # batch_size = 1
+        # label = torch.LongTensor(batch_size, 1).random_() % env.action_space.n
+        # last_action = torch.zeros(batch_size, env.action_space.n).scatter_(1, label, 1)
+        last_action = 0
         ready_to_push = False
         reward_period = 0
-        interval = 0
+        state = cat_s_a_np(state, last_action)
+        # interval = 0
 
         for t in range(10000):
             state_var = tensor(state).unsqueeze(0)
-            # Learning to Repeate only predicts when repeat reduced to 0.
-            assert(repeat>=0)
-            if repeat <= 0:
-                with torch.no_grad():
-                    if mean_action:
-                        action = policy(state_var)[0][0].numpy()
-                    else:
-                        # action, repeat = policy.select_action(state_var)[0].numpy()
-                        action, repeat = policy.select_action(state_var)
-                        action = action[0].numpy()
-                        repeat = repeat[0].numpy()
-                        # print(action)
-                        # print(repeat)
-                        # exit()
-                action = int(action) if policy.is_disc_action else action.astype(np.float64)
-                # action = action.tolist()
-                last_action = action
-                repeat = int(repeat)
-                repeat_len = repeat
-                ready_to_push = True
-                reward_period = 0
-                interval = 0
+            # state_var = torch.cat((state_var, last_action), 1)
+            # state_var = cat_s_a(state_var, 1)
+            # Learn to stop, else maintain last action
+            with torch.no_grad():
+                if mean_action:
+                    action = policy(state_var)[0][0].numpy()
+                else:
+                    # action, repeat = policy.select_action(state_var)[0].numpy()
+                    action, stop = policy.select_action(state_var)
+                    action = action[0].numpy()
+                    stop = stop[0].numpy()
+                    # print(action)
+                    # print(repeat)
+                    # exit()
+            action = int(action) if policy.is_disc_action else action.astype(np.float64)
+            stop = int(stop)
 
+            # action only updated when necessary.
+            # last_action = action
+            if t == 0 or stop is 1:
+                ready_to_push = True    
+            repeat += 1
+
+            assert(last_action is not None)
             next_state, reward, done, _ = env.step(last_action)
+
+            next_state = cat_s_a_np(next_state, last_action)
+
             reward_episode += reward
-            # reward_period += reward
-            reward_period += reward*(args.gamma**(repeat_len-repeat))
-            interval += 1
-            if repeat > 0:
-                repeat -= 1
+            reward_period += reward*(args.gamma**(repeat-1))
+
             if running_state is not None:
                 next_state = running_state(next_state)
 
@@ -76,10 +98,13 @@ def collect_samples(pid, queue, env, policy, custom_reward,
 
             mask = 0 if done else 1
             if ready_to_push == True or done:
-                repeat = 0 if done else repeat
-                memory.push(state, last_action, mask, next_state, float(reward_period/interval), repeat)
+                last_action = action
+                memory.push(state, last_action, mask, next_state, reward_period, stop, repeat)
                 ready_to_push = False
-                interval = 0
+                repeat = 0
+                reward_period = 0 
+                
+            # memory.push(state, last_action, mask, next_state, reward, stop)
 
             if render:
                 env.render()

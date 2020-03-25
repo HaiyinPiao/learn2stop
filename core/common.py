@@ -2,14 +2,21 @@ import torch
 from utils import to_device
 
 
-def estimate_advantages(repeats, rewards, masks, values, gamma, tau, device):
-    repeats, rewards, masks, values = to_device(torch.device('cpu'), repeats, rewards, masks, values)
+def estimate_advantages(stops, repeats, rewards, masks, values, gamma, tau, device):
+    stops, rewards, masks, values = to_device(torch.device('cpu'), stops, rewards, masks, values)
     tensor_type = type(rewards)
     deltas = tensor_type(rewards.size(0), 1)
     advantages = tensor_type(rewards.size(0), 1)
 
     prev_value = 0
     prev_advantage = 0
+    # for i in reversed(range(rewards.size(0))):
+    #     deltas[i] = rewards[i] + gamma * prev_value * masks[i] - values[i]
+    #     advantages[i] = deltas[i] + gamma * tau * prev_advantage * masks[i]
+
+    #     prev_value = values[i, 0]
+    #     prev_advantage = advantages[i, 0]
+
     for i in reversed(range(rewards.size(0))):
         # modified TD-error calculation for Learn to Repeat n times.
         gamma_n = gamma**repeats[i]

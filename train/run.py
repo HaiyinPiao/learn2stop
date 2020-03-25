@@ -52,28 +52,28 @@ value_net.to(device)
 
 state = env.reset()
 
-repeat = 0
+stop = False
 last_action = None
 reward_episode = 0
 
 for t in range(10000):
     state_var = tensor(state).unsqueeze(0)
-    assert(repeat>=0)
-    if repeat <= 0:
-        with torch.no_grad():
-            action, repeat = policy_net.select_action(state_var)
-            last_action = action
-            repeat = int(repeat)
-            print(repeat)
+    # assert(repeat>=0)
+    # if repeat <= 0:
+    with torch.no_grad():
+        action, stop = policy_net.select_action(state_var)
+        stop = bool(stop)
+        print(stop)
 
-    next_state, reward, done, _ = env.step(action[0].tolist())
+    if stop is True or t==0:
+        last_action = action
+
+    next_state, reward, done, _ = env.step(int(last_action[0].numpy()))
     reward_episode += reward
-    if repeat > 0:
-        repeat -= 1
 
     if args.render is True:
         env.render()
-    time.sleep(0.01)
+        time.sleep(0.01)
 
     if done:
         print("reward:", reward_episode)
