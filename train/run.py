@@ -6,6 +6,7 @@ import pickle
 import time
 import datetime
 import multiprocessing
+import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils import *
 from utils.args import *
@@ -30,7 +31,7 @@ device = torch.device('cpu')
 
 """environment"""
 env = gym.make(args.env_name)
-state_dim = env.observation_space.shape[0]
+state_dim = env.observation_space.shape[0]+env.action_space.n
 is_disc_action = len(env.action_space.shape) == 0
 # running_state = ZFilter((state_dim,), clip=5)
 
@@ -53,11 +54,21 @@ value_net.to(device)
 state = env.reset()
 
 stop = False
-last_action = None
 reward_episode = 0
+
+def cat_s_a_np(s:np.array, a:int):
+    batch_size = 1
+    # label = np.array([[a]])
+    oh = np.zeros((batch_size, env.action_space.n))
+    oh[0,a] = 1
+    return np.append(s,oh)
+
+last_action = 0
+state = cat_s_a_np(state, last_action)
 
 for t in range(10000):
     state_var = tensor(state).unsqueeze(0)
+    
     # assert(repeat>=0)
     # if repeat <= 0:
     with torch.no_grad():
@@ -69,6 +80,7 @@ for t in range(10000):
         last_action = action
 
     next_state, reward, done, _ = env.step(int(last_action[0].numpy()))
+    next_state = cat_s_a_np(next_state, last_action)
     reward_episode += reward
 
     if args.render is True:

@@ -51,6 +51,14 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 env.seed(args.seed)
 
+# x = torch.randn(3, 2)
+# print(x)
+# y = torch.ones(3, 2)
+# print(y)
+# x = torch.where(x > 0, x, y)
+# print(x)
+# exit()
+
 """define actor and critic"""
 if args.model_path is None:
     if is_disc_action:
@@ -83,13 +91,12 @@ def update_params(batch, i_iter):
     rewards = torch.from_numpy(np.stack(batch.reward)).to(dtype).to(device)
     masks = torch.from_numpy(np.stack(batch.mask)).to(dtype).to(device)
     stops = torch.from_numpy(np.stack(batch.stop)).to(dtype).to(device)
-    repeats = torch.from_numpy(np.stack(batch.repeat)).to(dtype).to(device)
     with torch.no_grad():
         values = value_net(states)
         fixed_log_probs, fixed_lts_log_probs = policy_net.get_log_prob(states, actions, stops)
 
     """get advantage estimation from the trajectories"""
-    advantages, returns = estimate_advantages(stops, repeats, rewards, masks, values, args.gamma, args.tau, device)
+    advantages, returns = estimate_advantages(stops, rewards, masks, values, args.gamma, args.tau, device)
 
     """perform mini-batch PPO update"""
     optim_iter_num = int(math.ceil(states.shape[0] / optim_batch_size))

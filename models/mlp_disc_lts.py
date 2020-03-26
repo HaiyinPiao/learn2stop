@@ -63,6 +63,14 @@ class DiscLtsPolicy(nn.Module):
         action_prob, stop_prob = self.forward(x)
         action_prob = action_prob.gather(1, actions.long().unsqueeze(1))+log_protect
         stop_prob = stop_prob.gather(1, stops.long().unsqueeze(1))+log_protect
+
+        # When stop==False, make action log(p)=0
+        # print(stops)
+        # print(action_prob)
+        stops = stops.unsqueeze(1)
+        action_prob = torch.where(stops == 1, action_prob, 1-stops)
+        # print(action_prob)
+        
         return torch.log(action_prob), torch.log(stop_prob)
 
     def get_fim(self, x):
